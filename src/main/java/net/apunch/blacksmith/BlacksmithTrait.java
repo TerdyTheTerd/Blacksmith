@@ -55,7 +55,7 @@ public class BlacksmithTrait extends Trait {
 		plugin = (BlacksmithPlugin) Bukkit.getServer().getPluginManager().getPlugin("Blacksmith");
 		int i = 0;
 		for (Enchantment enchantment : Enchantment.values())
-			enchantments[i++] = enchantment.getName();
+			enchantments[i++] = enchantment.getKey().toString();
 	}
 
 	@Override
@@ -119,7 +119,7 @@ public class BlacksmithTrait extends Trait {
 
 		if (cooldowns.get(player.getName()) != null) {
 			if (!Calendar.getInstance().after(cooldowns.get(player.getName()))) {
-				player.sendMessage(cooldownUnexpiredMsg);
+				player.sendMessage(cooldownUnexpiredMsg.replace("<name>", npc.getName()));
 				return;
 			}
 			cooldowns.remove(player.getName());
@@ -139,13 +139,13 @@ public class BlacksmithTrait extends Trait {
 		if (session != null) {
 			if (!session.isInSession(player)) {
 
-				player.sendMessage( busyWithPlayerMsg);
+				player.sendMessage(busyWithPlayerMsg.replace("<name>", npc.getName()));
 				return;		
 
 			}
 
 			if (session.isRunning()) {
-				player.sendMessage( busyReforgingMsg);
+				player.sendMessage(busyReforgingMsg.replace("<name>", npc.getName()));
 				return;
 			}
 			if (session.handleClick())
@@ -155,7 +155,7 @@ public class BlacksmithTrait extends Trait {
 		} else {
 			if ((!plugin.isTool(hand) && !plugin.isArmor(hand))
 					|| (!reforgeableItems.isEmpty() && !reforgeableItems.contains(hand.getType()))) {
-				player.sendMessage( invalidItemMsg);
+				player.sendMessage(invalidItemMsg.replace("<name>", npc.getName()));
 				return;
 			}
 			
@@ -164,7 +164,7 @@ public class BlacksmithTrait extends Trait {
 			_sessionstart = System.currentTimeMillis();
 			session = new ReforgeSession(player, npc);
 			player.sendMessage(costMsg.replace("<price>", cost).replace("<item>",
-					hand.getType().name().toLowerCase().replace('_', ' ')));
+					hand.getType().name().toLowerCase().replace('_', ' ')).replace("<name>", npc.getName()));
 
 		}
 	}
@@ -226,7 +226,7 @@ public class BlacksmithTrait extends Trait {
 
 		@Override
 		public void run() {
-			player.sendMessage( reforgeItemInHand() ? successMsg : failMsg);
+			player.sendMessage(( reforgeItemInHand() ? successMsg : failMsg).replace("<name>", npc.getName()));
 			if (npc.getEntity() instanceof Player)
 				((Player) npc.getEntity()).setItemInHand(null);
             else
@@ -270,7 +270,7 @@ public class BlacksmithTrait extends Trait {
 					}
 				}
 				// Damage the item
-				short durability = (short) (reforge.getDurability() + reforge.getDurability() * random.nextInt(8));
+				short durability = (short) (reforge.getItemMeta(). + reforge.getDurability() * random.nextInt(8));
 				short maxDurability = reforge.getType().getMaxDurability();
 				if (durability <= 0)
 					durability = (short) (maxDurability / 3);
@@ -305,11 +305,11 @@ public class BlacksmithTrait extends Trait {
 		private boolean handleClick() {
 			// Prevent player from switching items during session
 			if (!reforge.equals(player.getItemInHand())) {
-				player.sendMessage( itemChangedMsg);
+				player.sendMessage(itemChangedMsg.replace("<name>", npc.getName()));
 				return true;
 			}
 			if (!plugin.doesPlayerHaveEnough(player)) {
-				player.sendMessage( insufficientFundsMsg);
+				player.sendMessage(insufficientFundsMsg.replace("<name>", npc.getName()));
 				return true;
 			}
 			return false;

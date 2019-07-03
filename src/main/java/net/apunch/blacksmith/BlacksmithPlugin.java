@@ -127,7 +127,7 @@ public class BlacksmithPlugin extends JavaPlugin {
 	public boolean isTool(ItemStack item) {
 		switch (item.getType()) {
 		case WOODEN_PICKAXE:
-			case WOODEN_SHOVEL:
+		case WOODEN_SHOVEL:
 		case WOODEN_HOE:
 		case WOODEN_SWORD:
 		case WOODEN_AXE:
