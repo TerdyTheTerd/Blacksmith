@@ -1,6 +1,6 @@
 name: Blacksmith
-author: aPunch, jrbudda, HurricanKai
-version: 1.12
+author: aPunch, jrbudda, HurricanKai, Verex
+version: 1.14
 main: net.apunch.blacksmith.BlacksmithPlugin
 depend: [Citizens, Vault]
 softdepend: [HyperConomy]
@@ -10,4 +10,10 @@ api-version: 1.14
 commands:
   blacksmithreload:
     permission: blacksmith.reload
-    description: reloads the config file for Blacksmith
+    description: Reloads the config file for Blacksmith
+
+permissions:
+  blacksmith.reload:
+    description: Reloads the config file for Blacksmith
+  blacksmith.reforge:
+    description: Allows use of the reforge NPC.

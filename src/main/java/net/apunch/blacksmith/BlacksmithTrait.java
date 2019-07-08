@@ -9,6 +9,7 @@ import java.util.Random;
 
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
+import org.bukkit.NamespacedKey;
 import org.bukkit.enchantments.Enchantment;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
@@ -20,9 +21,11 @@ import net.apunch.blacksmith.util.Settings.Setting;
 import net.citizensnpcs.api.npc.NPC;
 import net.citizensnpcs.api.trait.Trait;
 import net.citizensnpcs.api.util.DataKey;
+import net.citizensnpcs.api.event.NPCLeftClickEvent;
+import net.citizensnpcs.api.event.NPCRightClickEvent;
 
 public class BlacksmithTrait extends Trait {
-	private static final String[] enchantments = new String[Enchantment.values().length];
+	private static final NamespacedKey[] enchantments = new NamespacedKey[Enchantment.values().length];
 
 	private final BlacksmithPlugin plugin;
 	private final List<Material> reforgeableItems = new ArrayList<Material>();
@@ -55,7 +58,7 @@ public class BlacksmithTrait extends Trait {
 		plugin = (BlacksmithPlugin) Bukkit.getServer().getPluginManager().getPlugin("Blacksmith");
 		int i = 0;
 		for (Enchantment enchantment : Enchantment.values())
-			enchantments[i++] = enchantment.getKey().toString();
+			enchantments[i++] = enchantment.getKey();
 	}
 
 	@Override
@@ -97,8 +100,8 @@ public class BlacksmithTrait extends Trait {
 			maxEnchantments = key.getInt("maximum-enchantments");
 		if (key.keyExists("extra-enchantments-chance"))
 			extraEnchantmentChance = key.getInt("extra-enchantment-chance");
-		if (key.keyExists("dropitem"))
-			dropItem = key.getBoolean("dropitem");
+		if (key.keyExists("drop-item"))
+			dropItem = key.getBoolean("drop-item");
 		if (key.keyExists("disable-cooldown"))
 			disablecooldown = key.getBoolean("disable-cooldown");
 		if (key.keyExists("disable-delay"))
@@ -106,67 +109,90 @@ public class BlacksmithTrait extends Trait {
 	}
 
 	@EventHandler
-	public void onRightClick(net.citizensnpcs.api.event.NPCRightClickEvent event) {
-		if(this.npc!=event.getNPC()) return;
+	public void onRightClick(NPCRightClickEvent event) {
+		// Ensure npc entity.
+		if (this.npc != event.getNPC())
+			return;
 
-		Player player = event.getClicker();
-		if ((disablecooldown & (cooldowns.get(player.getName()) != (null))))
-		{
+		onNPCInteract(event.getClicker());
+	}
+
+	@EventHandler
+	public void onLeftClick(NPCLeftClickEvent event) {
+		// Ensure npc entity.
+		if (this.npc != event.getNPC())
+			return;
+
+		onNPCInteract(event.getClicker());
+	}
+
+	public void onNPCInteract(Player player) {
+
+		if ((disablecooldown & (cooldowns.get(player.getName()) != (null)))) {
 			cooldowns.remove(player.getName());
 		}
+
 		if (!player.hasPermission("blacksmith.reforge"))
 			return;
 
 		if (cooldowns.get(player.getName()) != null) {
 			if (!Calendar.getInstance().after(cooldowns.get(player.getName()))) {
-				player.sendMessage(cooldownUnexpiredMsg.replace("<name>", npc.getName()));
+				player.sendMessage(parseConfVars(cooldownUnexpiredMsg, null, null));
 				return;
 			}
 			cooldowns.remove(player.getName());
 		}
 
-
-		ItemStack hand = player.getItemInHand();
-
-		if(session!=null){
-			//timeout
-			if ( System.currentTimeMillis() > _sessionstart + 10*1000 || this.npc.getEntity().getLocation().distance(session.player.getLocation()) > 20 ){
-				session = null;
-			}	
-		}
-
+		// Get the currently held item.
+		ItemStack hand = player.getInventory().getItemInMainHand();
 
 		if (session != null) {
-			if (!session.isInSession(player)) {
 
-				player.sendMessage(busyWithPlayerMsg.replace("<name>", npc.getName()));
-				return;		
-
+			// Handle session timeout.
+			if (System.currentTimeMillis() > _sessionstart + 10 * 1000
+					|| this.npc.getEntity().getLocation().distance(session.player.getLocation()) > 20) {
+				session = null;
 			}
 
-			if (session.isRunning()) {
-				player.sendMessage(busyReforgingMsg.replace("<name>", npc.getName()));
+			// Ensure the NPC is free.
+			if (!session.isInSession(player)) {
+				player.sendMessage(parseConfVars(busyWithPlayerMsg, null, null));
 				return;
 			}
-			if (session.handleClick())
+
+			// Check if we're reforging.
+			if (session.isRunning()) {
+				player.sendMessage(parseConfVars(busyReforgingMsg, null, null));
+				return;
+			}
+
+			if (session.handleInteraction())
 				session = null;
 			else
 				reforge(npc, player);
+
 		} else {
 			if ((!plugin.isTool(hand) && !plugin.isArmor(hand))
 					|| (!reforgeableItems.isEmpty() && !reforgeableItems.contains(hand.getType()))) {
-				player.sendMessage(invalidItemMsg.replace("<name>", npc.getName()));
+
+				player.sendMessage(parseConfVars(invalidItemMsg, null, null));
 				return;
 			}
-			
+
+			// Get the cost of the repair.
 			String cost = plugin.formatCost(player);
-			
+
 			_sessionstart = System.currentTimeMillis();
 			session = new ReforgeSession(player, npc);
-			player.sendMessage(costMsg.replace("<price>", cost).replace("<item>",
-					hand.getType().name().toLowerCase().replace('_', ' ')).replace("<name>", npc.getName()));
 
+			player.sendMessage(parseConfVars(costMsg, plugin.getItemName(hand), cost));
 		}
+	}
+
+	public String parseConfVars(String in, String itemName, String cost) {
+		// Replace with name, item name, and item cost.
+		return in.replace("<npc>", npc.getName()).replace("<item>", (itemName == null ? "" : itemName))
+				.replace("<price>", (cost == null ? "" : cost));
 	}
 
 	private long _sessionstart = System.currentTimeMillis();
@@ -194,22 +220,31 @@ public class BlacksmithTrait extends Trait {
 		key.setInt("percent-chance-for-extra-enchantment", extraEnchantmentChance);
 		key.setInt("maximum-enchantments", maxEnchantments);
 		key.setBoolean("drop-item", dropItem);
-        key.setBoolean("disable-delay", disabledelay);
-        key.setBoolean("disable-cooldown", disablecooldown);
+		key.setBoolean("disable-delay", disabledelay);
+		key.setBoolean("disable-cooldown", disablecooldown);
+	}
+
+	private void setHeldItem(ItemStack itemStack) {
+		// Npc should be living entity.
+		if (npc.getEntity() instanceof LivingEntity) {
+			((LivingEntity) npc.getEntity()).getEquipment().setItemInMainHand(itemStack);
+		}
 	}
 
 	private void reforge(NPC npc, Player player) {
-		player.sendMessage( startReforgeMsg);
-                
-                //plugin.deposit(npc, player); // CitiTrader dependency outdated and broken
-                
-                plugin.withdraw(player);
+		// Initial forge message.
+		player.sendMessage(parseConfVars(startReforgeMsg, null, null));
+
+		// plugin.deposit(npc, player); // CitiTrader dependency outdated and broken
+
+		plugin.withdraw(player);
 		session.beginReforge();
-		if (npc.getEntity() instanceof Player)
-			((Player) npc.getEntity()).setItemInHand(player.getItemInHand());
-        else
-        	((LivingEntity) npc.getEntity()).getEquipment().setItemInHand(player.getItemInHand());
-		player.setItemInHand(null);
+
+		// Add the player's item to the NPC's hand.
+		setHeldItem(player.getInventory().getItemInMainHand());
+
+		// Remove the item from the player's hand.
+		player.getInventory().setItemInMainHand(null);
 	}
 
 	private class ReforgeSession implements Runnable {
@@ -221,34 +256,37 @@ public class BlacksmithTrait extends Trait {
 		private ReforgeSession(Player player, NPC npc) {
 			this.player = player;
 			this.npc = npc;
-			reforge = player.getItemInHand();
+
+			// Get the player's item.
+			reforge = player.getInventory().getItemInMainHand();
 		}
 
 		@Override
 		public void run() {
-			player.sendMessage(( reforgeItemInHand() ? successMsg : failMsg).replace("<name>", npc.getName()));
-			if (npc.getEntity() instanceof Player)
-				((Player) npc.getEntity()).setItemInHand(null);
-            else
-                ((LivingEntity) npc.getEntity()).getEquipment().setItemInHand(null);
-			if (!disabledelay)
-			{
-				if (dropItem)
+			String msg = (reforgeItemInHand() ? successMsg : failMsg);
+			player.sendMessage(parseConfVars(msg, plugin.getItemName(reforge), null));
+
+			// Remove the NPC's held item.
+			setHeldItem(null);
+
+			if (!disabledelay) {
+
+				// Handle item return method.
+				if (dropItem) {
+					// Drop the item for the player to pick up.
 					player.getWorld().dropItemNaturally(npc.getEntity().getLocation(), reforge);
-				else {
+				} else {
+
+					// Add the item to the player's inventory.
 					player.getInventory().addItem(reforge);
-					/*
-					oldmethode ?
-					for (ItemStack stack : player.getInventory().addItem(reforge).values())
-						player.getWorld().dropItemNaturally(npc.getEntity().getLocation(), stack);
-					 */
 				}
+			} else {
+				//
+				player.getInventory().setItemInMainHand(reforge);
 			}
-			else
-			{
-				player.setItemInHand(reforge);
-			}
+
 			session = null;
+
 			// Start cooldown
 			Calendar wait = Calendar.getInstance();
 			wait.add(Calendar.SECOND, reforgeCooldown);
@@ -256,7 +294,9 @@ public class BlacksmithTrait extends Trait {
 		}
 
 		private boolean reforgeItemInHand() {
+
 			Random random = new Random();
+
 			if (random.nextInt(100) < failChance) {
 				for (Enchantment enchantment : reforge.getEnchantments().keySet()) {
 					// Remove or downgrade enchantments
@@ -269,32 +309,46 @@ public class BlacksmithTrait extends Trait {
 						}
 					}
 				}
+				// Get the current damage of the item.
+				int damage = plugin.getItemStackDamage(reforge);
+
 				// Damage the item
-				short durability = (short) (reforge.getItemMeta(). + reforge.getDurability() * random.nextInt(8));
+				int newDamage = (short) (damage + damage * random.nextInt(8));
+
+				// Get the max durability of the item.
 				short maxDurability = reforge.getType().getMaxDurability();
-				if (durability <= 0)
-					durability = (short) (maxDurability / 3);
-				else if (reforge.getDurability() + durability > maxDurability)
-					durability = (short) (maxDurability - random.nextInt(maxDurability - 25));
-				reforge.setDurability(durability);
+
+				if (newDamage <= 0)
+					newDamage = (short) (maxDurability / 3);
+				else if (damage + newDamage > maxDurability)
+					newDamage = (short) (maxDurability - random.nextInt(maxDurability - 25));
+
+				// Assign the new damage to the item stack.
+				plugin.setItemStackDamage(reforge, newDamage);
 				return false;
 			}
 
-			reforge.setDurability((short) 0);
+			// Remove the damage.
+			plugin.setItemStackDamage(reforge, 0);
 
 			// Add random enchantments
 
+			// If durability is full, chance is multiplied by 4. Seems unbalanced, so
+			// disabled for now.
+			/*
+			 * if (reforge.getDurability() == 0) chance *= 4; else
+			 */
 
-			// If durability is full, chance is multiplied by 4. Seems unbalanced, so disabled for now.
-			/*if (reforge.getDurability() == 0)
-            	chance *= 4;
-            else */
+			if (random.nextInt(100) < extraEnchantmentChance
+					&& reforge.getEnchantments().keySet().size() < maxEnchantments) {
 
-			int roll = random.nextInt(100);
-			if (roll < extraEnchantmentChance && reforge.getEnchantments().keySet().size() < maxEnchantments){
+				Enchantment enchantment = Enchantment.getByKey(enchantments[random.nextInt(enchantments.length)]);
 
-				Enchantment enchantment = Enchantment.getByName(enchantments[random.nextInt(enchantments.length)]);
-				if (enchantment.canEnchantItem(reforge)) reforge.addEnchantment(enchantment, random.nextInt(enchantment.getMaxLevel() - enchantment.getStartLevel()) + enchantment.getStartLevel());
+				// Get the bonus enchantment level.
+				int bonusEnchant = random.nextInt(Math.max(enchantment.getMaxLevel() - enchantment.getStartLevel(), 1));
+
+				if (enchantment.canEnchantItem(reforge))
+					reforge.addEnchantment(enchantment, bonusEnchant + enchantment.getStartLevel());
 
 			}
 
@@ -302,14 +356,17 @@ public class BlacksmithTrait extends Trait {
 		}
 
 		// Return if the session should end
-		private boolean handleClick() {
+		private boolean handleInteraction() {
+
 			// Prevent player from switching items during session
-			if (!reforge.equals(player.getItemInHand())) {
-				player.sendMessage(itemChangedMsg.replace("<name>", npc.getName()));
+			if (!reforge.equals(player.getInventory().getItemInMainHand())) {
+				player.sendMessage(parseConfVars(itemChangedMsg, null, null));
 				return true;
 			}
+
+			// Ensure player has enough.
 			if (!plugin.doesPlayerHaveEnough(player)) {
-				player.sendMessage(insufficientFundsMsg.replace("<name>", npc.getName()));
+				player.sendMessage(parseConfVars(insufficientFundsMsg, null, null));
 				return true;
 			}
 			return false;
@@ -324,20 +381,11 @@ public class BlacksmithTrait extends Trait {
 		}
 
 		private void beginReforge() {
-			if (!disablecooldown)
-			{
-			taskId = plugin
-					.getServer()
-					.getScheduler()
-					.scheduleSyncDelayedTask(plugin, this,
-							(new Random().nextInt(maxReforgeDelay) + minReforgeDelay) * 20);
-			}
-			else
-			{
-				taskId = plugin
-						.getServer()
-						.getScheduler()
-						.scheduleSyncDelayedTask(plugin, this,0);
+			if (!disablecooldown) {
+				taskId = plugin.getServer().getScheduler().scheduleSyncDelayedTask(plugin, this,
+						(new Random().nextInt(maxReforgeDelay) + minReforgeDelay) * 20);
+			} else {
+				taskId = plugin.getServer().getScheduler().scheduleSyncDelayedTask(plugin, this, 0);
 			}
 		}
 	}

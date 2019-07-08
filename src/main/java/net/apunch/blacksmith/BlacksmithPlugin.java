@@ -24,6 +24,10 @@ import org.bukkit.inventory.ItemStack;
 import org.bukkit.plugin.Plugin;
 import org.bukkit.plugin.RegisteredServiceProvider;
 import org.bukkit.plugin.java.JavaPlugin;
+import org.bukkit.inventory.meta.Damageable;
+import org.bukkit.inventory.meta.ItemMeta;
+
+import org.bukkit.craftbukkit.v1_14_R1.inventory.CraftItemStack;
 
 import regalowl.hyperconomy.HyperAPI;
 import regalowl.hyperconomy.HyperConomy;
@@ -38,11 +42,12 @@ public class BlacksmithPlugin extends JavaPlugin {
 	private HyperAPI hyperAPI;
 	private BukkitConnector bukCon;
 	private boolean useHyperAPI = false;
-        //private boolean hasCititrader = false; // CitiTrader dependency outdated and broken
+	// private boolean hasCititrader = false; // CitiTrader dependency outdated and
+	// broken
 
 	@Override
 	public void onDisable() {
-	//	config.save();
+		// config.save();
 
 		getLogger().log(Level.INFO, " v" + getDescription().getVersion() + " disabled.");
 	}
@@ -51,78 +56,76 @@ public class BlacksmithPlugin extends JavaPlugin {
 	public void onEnable() {
 		config = new Settings(this);
 		config.load();
-		// Setup Hyperconomy (Soft-Depend only, so this is completely optional!)    
+
+		// Setup Hyperconomy (Soft-Depend only, so this is completely optional!)
 		// Hyperconomy uses your favorite Vault-compatible economy system
 		// and calculates prices for items based on supply and demand on the fly.
 		// This is only used to get the cost of a repair.
 		if (Bukkit.getPluginManager().getPlugin("HyperConomy") != null) {
-			getServer().getLogger().log(Level.INFO, "Found HyperConomy! Using that for calculating prices, base-prices and price-per-durability-point in the Blacksmith config.yml will NOT be used!");
+			getServer().getLogger().log(Level.INFO,
+					"Found HyperConomy! Using that for calculating prices, base-prices and price-per-durability-point in the Blacksmith config.yml will NOT be used!");
 			this.useHyperAPI = true;
 			Plugin hcPlugin = getServer().getPluginManager().getPlugin("HyperConomy");
-			bukCon = (BukkitConnector)hcPlugin;
+			bukCon = (BukkitConnector) hcPlugin;
 			HyperConomy hc = bukCon.getHC();
 			this.hyperAPI = (HyperAPI) hc.getAPI();
 		}
-		getLogger().log(Level.INFO, "Setting Up Vault now....");
-        /* CitiTrader dependency outdated and broken
-                // Check for Cititrader
-                 if(getServer().getPluginManager().getPlugin("CitiTrader") != null) {
-                     hasCititrader = true;
-                 }
-                 */
-                
-		boolean canload = SetupVault();
-		if (!canload)
-		{
-			getLogger().log(Level.INFO, "Vault Failed....");
+
+		// Load vault.
+		if (!SetupVault()) {
+
+			// Disable if no economy plugin was found
+			getServer().getLogger().log(Level.SEVERE, "Vault failed to find economy provider.");
+
+			// Disable the plugin.
 			getServer().getPluginManager().disablePlugin(this);
+
 			return;
 		}
-		CitizensAPI.getTraitFactory().registerTrait(net.citizensnpcs.api.trait.TraitInfo.create(BlacksmithTrait.class).withName("blacksmith"));
 
+		// Register the blacksmith trait.
+		CitizensAPI.getTraitFactory().registerTrait(
+				net.citizensnpcs.api.trait.TraitInfo.create(BlacksmithTrait.class).withName("blacksmith"));
 
 		getLogger().log(Level.INFO, " v" + getDescription().getVersion() + " enabled.");
 	}
 
-    private boolean SetupVault() {
-		// Setup Vault
-		RegisteredServiceProvider<Economy> economyProvider = getServer().getServicesManager().getRegistration(
-				Economy.class);
-		if (economyProvider != null)
-		{
+	private boolean SetupVault() {
+
+		// Get the economy provider.
+		RegisteredServiceProvider<Economy> economyProvider = getServer().getServicesManager()
+				.getRegistration(Economy.class);
+
+		// Ensure economy provider was found.
+		if (economyProvider != null) {
 			economy = economyProvider.getProvider();
 			return true;
 		}
-		else {
-			// Disable if no economy plugin was found
-			getServer().getLogger().log(Level.SEVERE, "Failed to load an economy plugin. Disabling...");
-			return false;
-		}
+
+		return false;
 	}
 
 	@Override
-    public boolean onCommand(final CommandSender sender, final Command command, final String label, final String[] args) {
-        config.load();
-        sender.sendMessage(ChatColor.GREEN + "Blacksmith config reloaded!");
-        return true;
-    }
+	public boolean onCommand(final CommandSender sender, final Command command, final String label,
+			final String[] args) {
+		config.load();
+		sender.sendMessage(ChatColor.GREEN + "Blacksmith config reloaded!");
+		return true;
+	}
 
-    /* CitiTrader dependency outdated and broken
-    // Return if we have cititrader
-         public boolean hasCititrader() {
-            return this.hasCititrader;
-         }
-         */
-        
-	public BlacksmithTrait getBlacksmith(NPC npc){
+	/*
+	 * CitiTrader dependency outdated and broken // Return if we have cititrader
+	 * public boolean hasCititrader() { return this.hasCititrader; }
+	 */
 
-		if (npc !=null && npc.hasTrait(BlacksmithTrait.class)){
+	public BlacksmithTrait getBlacksmith(NPC npc) {
+
+		if (npc != null && npc.hasTrait(BlacksmithTrait.class)) {
 			return npc.getTrait(BlacksmithTrait.class);
 		}
 
 		return null;
 	}
-
 
 	public boolean isTool(ItemStack item) {
 		switch (item.getType()) {
@@ -190,98 +193,130 @@ public class BlacksmithPlugin extends JavaPlugin {
 	}
 
 	public boolean doesPlayerHaveEnough(Player player) {
-		return economy.getBalance((OfflinePlayer) player) - getCost(player.getItemInHand(), player) >= 0;
+		return economy.getBalance((OfflinePlayer) player)
+				- getCost(player.getInventory().getItemInMainHand(), player) >= 0;
 	}
 
 	public String formatCost(Player player) {
-		double cost = getCost(player.getItemInHand(), player);
+		double cost = getCost(player.getInventory().getItemInMainHand(), player);
 		return economy.format(cost);
 	}
 
 	public void withdraw(Player player) {
-		economy.withdrawPlayer(((OfflinePlayer) player), getCost(player.getItemInHand(), player));
+		economy.withdrawPlayer(((OfflinePlayer) player), getCost(player.getInventory().getItemInMainHand(), player));
 	}
-       /* CitiTrader dependency outdated and broken.
-        public void deposit(NPC npc, Player player) {
-//            if(hasCititrader) {
-//             if(npc.hasTrait(WalletTrait.class)) {
-//                  npc.getTrait(WalletTrait.class).deposit(getCost(player.getItemInHand()));
-//              }
-//            }
-        }
-        */
+	/*
+	 * CitiTrader dependency outdated and broken. public void deposit(NPC npc,
+	 * Player player) { // if(hasCititrader) { //
+	 * if(npc.hasTrait(WalletTrait.class)) { //
+	 * npc.getTrait(WalletTrait.class).deposit(getCost(player.getItemInHand())); //
+	 * } // } }
+	 */
 
 	private double getCost(ItemStack item, Player player) {
 		DataKey root = config.getConfig().getKey("");
 		double price = Setting.BASE_PRICE.asDouble();
+		
+		// Check if base price key exists.
 		if (root.keyExists("base-prices." + item.getType().name().toLowerCase().replace('_', '-')))
 			price = root.getDouble("base-prices." + item.getType().name().toLowerCase().replace('_', '-'));
 
 		// Adjust price based on durability and enchantments
 		if (this.useHyperAPI) {
 			// If using hyperconomy, price is calculated like so:
-			// New Item Price + Enchantments Price (from hyperconomy) / maxDurability = price per durability point
-			// Total price would then be base_price + price per durablity point * current durability
+			// New Item Price + Enchantments Price (from hyperconomy) / maxDurability =
+			// price per durability point
+			// Total price would then be base_price + price per durablity point * current
+			// durability
 			double hyperPrice = 0;
 			HItemStack hi = hyperAPI.getHyperPlayer(player.getName()).getItemInHand();
-			ItemStack item2 = player.getItemInHand().clone();
-			
+			ItemStack item2 = player.getInventory().getItemInMainHand().clone();
+
 			for (TradeObject enchant : hyperAPI.getEnchantmentHyperObjects(hi, player.getName())) {
 				hyperPrice = hyperPrice + enchant.getBuyPrice(1);
+
+				// TODO: This needs to be removed, depricated.
 				item2.removeEnchantment(Enchantment.getByName(enchant.getEnchantment().getEnchantmentName()));
 			}
-			
+
 			ArrayList<Material> leathers = new ArrayList<Material>();
 			leathers.add(Material.LEATHER_BOOTS);
 			leathers.add(Material.LEATHER_CHESTPLATE);
 			leathers.add(Material.LEATHER_HELMET);
 			leathers.add(Material.LEATHER_LEGGINGS);
-			
+
 			HItemStack hi3 = null;
-			if (leathers.contains(player.getItemInHand().getType())){
-				hi3 = bukCon.getBukkitCommon().getSerializableItemStack(new ItemStack(player.getItemInHand().getType()));
+			if (leathers.contains(player.getInventory().getItemInMainHand().getType())) {
+				hi3 = bukCon.getBukkitCommon()
+						.getSerializableItemStack(new ItemStack(player.getInventory().getItemInMainHand().getType()));
 			}
-			
+
 			TradeObject to = this.hyperAPI.getHyperObject(hi, "default");
-			if (to==null) {
+			if (to == null) {
 				to = hyperAPI.getHyperObject(hi3, "default");
-				if (to==null) {
-					HItemStack hi4 = bukCon.getBukkitCommon().getSerializableItemStack(new ItemStack(player.getItemInHand().getType()));
+				if (to == null) {
+					HItemStack hi4 = bukCon.getBukkitCommon().getSerializableItemStack(
+							new ItemStack(player.getInventory().getItemInMainHand().getType()));
 					to = this.hyperAPI.getHyperObject(hi4, "default");
 				}
-				hyperPrice = hyperPrice+to.getSellPrice(1);
-	
+				hyperPrice = hyperPrice + to.getSellPrice(1);
+
 			} else {
 				hyperPrice = to.getSellPrice(1);
 			}
 			double hyperPricePerDurability = hyperPrice / item.getType().getMaxDurability();
-			price += (item.getDurability() * hyperPricePerDurability);
-			
+			price += (getItemStackDamage(item) * hyperPricePerDurability);
+
 			double enchantmentModifier = Setting.ENCHANTMENT_MODIFIER.asDouble();
 			for (Enchantment enchantment : item2.getEnchantments().keySet()) {
-				if (root.keyExists("enchantment-modifiers." + enchantment.getName().toLowerCase().replace('_', '-')))
-					enchantmentModifier = root.getDouble("enchantment-modifiers."
-							+ enchantment.getName().toLowerCase().replace('_', '-'));
+				if (root.keyExists("enchantment-modifiers." + getEnchantmentName(enchantment).toLowerCase().replace('_', '-')))
+					enchantmentModifier = root.getDouble(
+							"enchantment-modifiers." + getEnchantmentName(enchantment).toLowerCase().replace('_', '-'));
 				price += enchantmentModifier * item2.getEnchantmentLevel(enchantment);
 			}
-			
-			
+
 			return price;
 		}
 
 		else {
 			if (root.keyExists("price-per-durability-point." + item.getType().name().toLowerCase().replace('_', '-')))
-				price += item.getDurability() * root.getDouble("price-per-durability-point." + item.getType().name().toLowerCase().replace('_', '-'));
-			else price += (item.getDurability() * Setting.PRICE_PER_DURABILITY_POINT.asDouble());
+				price += getItemStackDamage(item) * root.getDouble(
+						"price-per-durability-point." + item.getType().name().toLowerCase().replace('_', '-'));
+			else
+				price += (getItemStackDamage(item) * Setting.PRICE_PER_DURABILITY_POINT.asDouble());
 		}
 
 		double enchantmentModifier = Setting.ENCHANTMENT_MODIFIER.asDouble();
 		for (Enchantment enchantment : item.getEnchantments().keySet()) {
-			if (root.keyExists("enchantment-modifiers." + enchantment.getName().toLowerCase().replace('_', '-')))
-				enchantmentModifier = root.getDouble("enchantment-modifiers."
-						+ enchantment.getName().toLowerCase().replace('_', '-'));
+			if (root.keyExists("enchantment-modifiers." + getEnchantmentName(enchantment).toLowerCase().replace('_', '-')))
+				enchantmentModifier = root
+						.getDouble("enchantment-modifiers." + getEnchantmentName(enchantment).toLowerCase().replace('_', '-'));
 			price += enchantmentModifier * item.getEnchantmentLevel(enchantment);
 		}
 		return price;
+	}
+
+	public int getItemStackDamage(ItemStack stack) {
+		return ((Damageable) stack.getItemMeta()).getDamage();
+	}
+
+	public void setItemStackDamage(ItemStack stack, int damage) {
+		// Cast meta as damageable.
+		Damageable damageable = ((Damageable) stack.getItemMeta());
+
+		// Assign the new damage.
+		damageable.setDamage(damage);
+
+		// Apply the meta.
+		stack.setItemMeta((ItemMeta) damageable);
+	}
+
+	public String getItemName(ItemStack stack) {
+		// Get item name from craft item stack.
+		return CraftItemStack.asNMSCopy(stack).getName().getText();
+	}
+
+	public String getEnchantmentName(Enchantment enchantment) {
+		return enchantment.toString();
 	}
 }

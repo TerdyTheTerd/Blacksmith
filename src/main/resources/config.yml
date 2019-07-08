@@ -1,0 +1,26 @@
+# Blacksmith Configuration
+base-prices:
+ default: 10
+price-per-durability-point:
+ default: 1
+defaults:
+ messages:
+   busy-with-player: "<r><npc>: Im busy at the moment. Come back later!"
+   busy-with-reforge: "<r><npc>: Im working on it. Be patient!"
+   cooldown-not-expired: "<r><npc>: You've already had your chance! Give me a break!"
+   cost: "<r><npc>: It will cost <a><price><r> to reforge that <a><item><r>. Talk to me again to reforge."
+   fail-reforge: "<r><npc>: Sorry about that, I messed up your <item>."
+   insufficient-funds: "<r><npc>: You don't have enough money to reforge that item!"
+   invalid-item: "<r><npc>: I'm sorry, but I don't know how to reforge that!"
+   start-reforge: "<r><npc>: Ok, let's see what I can do..."
+   successful-reforge: "<r><npc>: There you go! All better!"
+ drop-item: true
+ percent-chance-to-fail-reforge: 10
+ percent-chance-for-extra-enchantments: 80
+ maximum-enchantments: 3
+ delays-in-seconds:
+   maximum: 20
+   minimum: 5
+   reforge-cooldown: 10
+enchantment-modifiers:
+ default: 5

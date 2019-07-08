@@ -41,7 +41,7 @@ public class Settings {
         COST_MESSAGE(
                 "defaults.messages.cost",
                 "§eIt will cost §a<price> §eto reforge that §a<item>§e! Click again to reforge!"),
-        DROP_ITEM("defaults.dropitem", true),
+        DROP_ITEM("defaults.drop-item", true),
         DISABLE_COOLDOWN("defaults.disablecooldown", false),
         DISABLE_DELAY("defaults.disabledelay", false),
         ENCHANTMENT_MODIFIER("enchantment-modifiers.default", 5),
@@ -56,7 +56,7 @@ public class Settings {
                 "§cThat's not the item you wanted to reforge before!"),
         EXTRA_ENCHANTMENT_CHANCE("defaults.percent-chance-for-extra-enchantment", 5),
         MAX_ENCHANTMENTS("defaults.maximum-enchantments", 3),
-        MAX_REFORGE_DELAY("defaults.delays-in-seconds.maximum", 30),
+        MAX_REFORGE_DELAY("defaults.delays-in-seconds.maximum", 20),
         MIN_REFORGE_DELAY("defaults.delays-in-seconds.minimum", 5),
         REFORGE_COOLDOWN("defaults.delays-in-seconds.reforge-cooldown", 60),
         START_REFORGE_MESSAGE("defaults.messages.start-reforge", "§eOk, let's see what I can do..."),
