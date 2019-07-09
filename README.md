@@ -3,6 +3,7 @@ Blacksmith
 
 A blacksmith plugin for Spigot!
 
-Builds available at: http://ci.citizensnpcs.co/job/Blacksmith/
-
-Backed by Citizens2: https://github.com/CitizensDev/Citizens2
+-- Updated for 1.14
+- Drop item config parameter fixed.
+- Removal of deprecated calls.
+- Added "<npc>" as variable for messages in config (Replaced with the npc's name).
